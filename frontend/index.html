@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BTC Range Forecaster — AlphaI × Polaris</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  /* ── Design System ── */
+  :root {
+    --bg:       #080c10;
+    --surface:  #0d1117;
+    --border:   #1c2433;
+    --text:     #c9d4e0;
+    --muted:    #4a5568;
+    --accent:   #f7c94b;   /* gold */
+    --green:    #22c55e;
+    --red:      #ef4444;
+    --blue:     #38bdf8;
+    --purple:   #a78bfa;
+    --font-mono: 'Space Mono', monospace;
+    --font-sans: 'Syne', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* ── Layout ── */
+  .shell {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px 20px;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .brand-icon {
+    width: 40px;
+    height: 40px;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #000;
+    font-family: var(--font-sans);
+    font-weight: 800;
+  }
+
+  .brand-name {
+    font-family: var(--font-sans);
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: -0.02em;
+    color: #fff;
+  }
+
+  .brand-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+
+  /* ── Metrics Row ── */
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  @media (max-width: 768px) {
+    .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .metric-card:hover { border-color: var(--accent); }
+
+  .metric-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .metric-card.gold::after   { background: var(--accent); }
+  .metric-card.green::after  { background: var(--green); }
+  .metric-card.blue::after   { background: var(--blue); }
+  .metric-card.purple::after { background: var(--purple); }
+
+  .metric-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .metric-value {
+    font-family: var(--font-sans);
+    font-weight: 800;
+    font-size: 28px;
+    color: #fff;
+    line-height: 1;
+    transition: color 0.3s;
+  }
+
+  .metric-value.gold   { color: var(--accent); }
+  .metric-value.green  { color: var(--green); }
+  .metric-value.blue   { color: var(--blue); }
+  .metric-value.purple { color: var(--purple); }
+
+  .metric-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* ── Main Grid ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  @media (max-width: 1024px) {
+    .main-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ── Panel ── */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 20px;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+  }
+
+  .panel-badge {
+    font-size: 10px;
+    padding: 3px 8px;
+    background: rgba(247,201,75,0.12);
+    color: var(--accent);
+    border: 1px solid rgba(247,201,75,0.2);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  /* ── Chart ── */
+  .chart-wrap {
+    position: relative;
+    height: 320px;
+  }
+
+  /* ── Prediction Panel ── */
+  .pred-price {
+    font-family: var(--font-sans);
+    font-weight: 800;
+    font-size: 38px;
+    color: #fff;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+  }
+
+  .pred-change {
+    font-size: 13px;
+    margin-bottom: 24px;
+  }
+
+  .pred-change.up   { color: var(--green); }
+  .pred-change.down { color: var(--red); }
+
+  .range-display {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 16px;
+    margin-bottom: 16px;
+    position: relative;
+  }
+
+  .range-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .range-bounds {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 10px;
+  }
+
+  .bound-val {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: 22px;
+    color: #fff;
+  }
+
+  .bound-sub {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .range-bar {
+    height: 8px;
+    background: var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .range-fill {
+    position: absolute;
+    top: 0; bottom: 0;
+    background: linear-gradient(90deg, var(--green), var(--accent));
+    animation: fillIn 0.8s ease;
+  }
+
+  @keyframes fillIn {
+    from { width: 0 !important; }
+  }
+
+  .range-current {
+    position: absolute;
+    top: -3px;
+    width: 2px;
+    height: 14px;
+    background: #fff;
+  }
+
+  /* ── Params ── */
+  .param-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .param-item {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+  }
+
+  .param-key {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+  }
+
+  .param-val {
+    font-size: 14px;
+    color: var(--text);
+  }
+
+  /* ── Last Updated ── */
+  .last-updated {
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── Bottom Row ── */
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  @media (max-width: 768px) {
+    .bottom-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ── History Table ── */
+  .history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .history-table th {
+    text-align: left;
+    padding: 8px 10px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .history-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(28,36,51,0.5);
+    color: var(--text);
+  }
+
+  .history-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .badge-hit  { color: var(--green); }
+  .badge-miss { color: var(--red); }
+
+  /* ── Skeleton ── */
+  .skel {
+    background: linear-gradient(90deg, var(--border) 25%, var(--surface) 50%, var(--border) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to   { background-position: -200% 0; }
+  }
+
+  /* ── Error Banner ── */
+  .error-banner {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3);
+    color: var(--red);
+    padding: 12px 16px;
+    font-size: 12px;
+    margin-bottom: 16px;
+    display: none;
+  }
+
+  /* ── Footer ── */
+  footer {
+    text-align: center;
+    padding: 24px 0 12px;
+    font-size: 11px;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+    margin-top: 24px;
+    letter-spacing: 0.06em;
+  }
+
+  /* ── Loading overlay ── */
+  #loading {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+    gap: 16px;
+    transition: opacity 0.5s;
+  }
+
+  #loading.fade { opacity: 0; pointer-events: none; }
+
+  .loader-text {
+    font-family: var(--font-sans);
+    font-weight: 800;
+    font-size: 22px;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+  }
+
+  .loader-sub {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .loader-bar {
+    width: 200px;
+    height: 2px;
+    background: var(--border);
+    overflow: hidden;
+  }
+
+  .loader-fill {
+    height: 100%;
+    background: var(--accent);
+    animation: load 2s ease-in-out infinite;
+  }
+
+  @keyframes load {
+    0%   { width: 0%;   margin-left: 0; }
+    50%  { width: 60%;  margin-left: 20%; }
+    100% { width: 0%;   margin-left: 100%; }
+  }
+
+  .refresh-btn {
+    padding: 8px 18px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .refresh-btn:hover {
+    background: var(--accent);
+    color: #000;
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading screen -->
+<div id="loading">
+  <div class="loader-text">₿ FORECASTER</div>
+  <div class="loader-sub">Fetching live BTC data…</div>
+  <div class="loader-bar"><div class="loader-fill"></div></div>
+</div>
+
+<div class="shell">
+  <header>
+    <div class="brand">
+      <div class="brand-icon">₿</div>
+      <div>
+        <div class="brand-name">BTC Range Forecaster</div>
+        <div class="brand-sub">AlphaI</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+      <div class="status-pill">
+        <div class="status-dot"></div>
+        <span id="status-text">Connecting…</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Error banner -->
+  <div class="error-banner" id="error-banner"></div>
+
+  <!-- Metrics Row -->
+  <div class="metrics-grid">
+    <div class="metric-card gold">
+      <div class="metric-label">Coverage 95%</div>
+      <div class="metric-value gold" id="m-coverage">—</div>
+      <div class="metric-sub">Target: 0.95</div>
+    </div>
+    <div class="metric-card green">
+      <div class="metric-label">Avg Width</div>
+      <div class="metric-value green" id="m-width">—</div>
+      <div class="metric-sub">Tighter = better</div>
+    </div>
+    <div class="metric-card blue">
+      <div class="metric-label">Winkler Score</div>
+      <div class="metric-value blue" id="m-winkler">—</div>
+      <div class="metric-sub">Lower = better</div>
+    </div>
+    <div class="metric-card purple">
+      <div class="metric-label">Predictions</div>
+      <div class="metric-value purple" id="m-count">—</div>
+      <div class="metric-sub">Backtest bars</div>
+    </div>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="main-grid">
+    <!-- Chart Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">BTCUSDT · 1H · Last 50 Bars + Predicted Range</span>
+        <span class="panel-badge" id="chart-time">—</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="priceChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Prediction Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Next 1H Prediction</span>
+        <span class="panel-badge">95% CI</span>
+      </div>
+
+      <div class="pred-price" id="pred-price">—</div>
+      <div class="pred-change" id="pred-change"></div>
+
+      <div class="range-display">
+        <div class="range-label">Predicted Range (next close)</div>
+        <div class="range-bounds">
+          <div>
+            <div class="bound-sub">Floor</div>
+            <div class="bound-val" id="pred-low">—</div>
+          </div>
+          <div style="text-align:right">
+            <div class="bound-sub">Ceiling</div>
+            <div class="bound-val" id="pred-high">—</div>
+          </div>
+        </div>
+        <div class="range-bar">
+          <div class="range-fill" id="range-fill" style="width:60%;left:20%"></div>
+          <div class="range-current" id="range-cursor" style="left:50%"></div>
+        </div>
+      </div>
+
+      <div class="param-grid">
+        <div class="param-item">
+          <div class="param-key">Width</div>
+          <div class="param-val" id="pred-width">—</div>
+        </div>
+        <div class="param-item">
+          <div class="param-key">Drift (μ)</div>
+          <div class="param-val" id="pred-mu">—</div>
+        </div>
+        <div class="param-item">
+          <div class="param-key">Volatility (σ)</div>
+          <div class="param-val" id="pred-sigma">—</div>
+        </div>
+        <div class="param-item">
+          <div class="param-key">t-dof (ν)</div>
+          <div class="param-val" id="pred-nu">—</div>
+        </div>
+      </div>
+
+      <div class="last-updated" id="last-updated">Last updated: —</div>
+    </div>
+  </div>
+
+  <!-- Bottom Row -->
+  <div class="bottom-grid">
+    <!-- Prediction History -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Prediction History</span>
+        <span class="panel-badge" id="history-count">0 saved</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Time (UTC)</th>
+              <th>Low</th>
+              <th>High</th>
+              <th>Actual</th>
+              <th>Hit?</th>
+            </tr>
+          </thead>
+          <tbody id="history-body">
+            <tr><td colspan="5" style="color:var(--muted);text-align:center;padding:20px">No history yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Model Notes -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Model Architecture</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="border-left:2px solid var(--accent);padding-left:14px">
+          <div style="font-size:12px;color:var(--accent);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">No-Peek Guarantee</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.6">Walk-forward backtest: prediction at bar N uses strictly bars 0…N−1. Zero data leakage.</div>
+        </div>
+        <div style="border-left:2px solid var(--blue);padding-left:14px">
+          <div style="font-size:12px;color:var(--blue);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">Volatility Clustering</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.6">σ estimated from a rolling 24-bar window. Calm periods → narrow range. Volatile periods → wide range.</div>
+        </div>
+        <div style="border-left:2px solid var(--green);padding-left:14px">
+          <div style="font-size:12px;color:var(--green);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">Fat Tails</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.6">GBM driven by t(ν) innovations, ν fitted empirically. Captures BTC's heavy tail behaviour without over-widening ranges.</div>
+        </div>
+        <div style="border-left:2px solid var(--purple);padding-left:14px">
+          <div style="font-size:12px;color:var(--purple);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">Monte Carlo</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.6">10,000 simulated 1-step paths. 95% CI from [2.5th, 97.5th] percentile of terminal prices.</div>
+        </div>
+        <div style="border-left:2px solid var(--red);padding-left:14px">
+          <div style="font-size:12px;color:var(--red);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">Winkler Score</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.6">Penalises both width and misses. Score = width if correct; width + (2/α)·miss_distance if wrong. Lower is better.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    BTC RANGE FORECASTER · Volatility Clustering
+    · Data: Binance Public API
+  </footer>
+</div>
+
+<script>
+// ─── Config ───────────────────────────────────────────────────────────────────
+// Change this to your deployed backend URL (e.g., https://your-app.railway.app)
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:8010'
+  : window.location.origin.replace(':5500', ':8000');  // adjust for your deployment
+
+let priceChart = null;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const fmt   = (n, d=2) => n != null ? Number(n).toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d}) : '—';
+const fmtSci= (n, d=5) => n != null ? Number(n).toExponential(d) : '—';
+const el    = id => document.getElementById(id);
+
+function showError(msg) {
+  const b = el('error-banner');
+  b.textContent = '⚠ ' + msg;
+  b.style.display = 'block';
+}
+
+function clearError() {
+  el('error-banner').style.display = 'none';
+}
+
+function setStatus(text, alive=true) {
+  el('status-text').textContent = text;
+  const dot = document.querySelector('.status-dot');
+  dot.style.background = alive ? 'var(--green)' : 'var(--red)';
+}
+
+// ─── Chart ────────────────────────────────────────────────────────────────────
+function buildChart(bars, low, high) {
+  const labels = bars.map(b => {
+    const d = new Date(b.open_time);
+    return d.toISOString().slice(11,16);
+  });
+  const closes   = bars.map(b => b.close);
+  const lows     = [...Array(bars.length).fill(null)];
+  const highs    = [...Array(bars.length).fill(null)];
+
+  // Project CI onto last bar + 1 virtual bar
+  labels.push('→');
+  closes.push(null);
+  lows.push(low);
+  highs.push(high);
+
+  const ctx = el('priceChart').getContext('2d');
+
+  if (priceChart) priceChart.destroy();
+
+  priceChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        // Price line
+        {
+          label: 'Close Price',
+          data: closes,
+          borderColor: '#c9d4e0',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          tension: 0.1,
+          fill: false,
+          yAxisID: 'y',
+        },
+        // CI high
+        {
+          label: 'CI High (95%)',
+          data: highs,
+          borderColor: 'rgba(34,197,94,0.8)',
+          borderWidth: 1.5,
+          borderDash: [4,3],
+          pointRadius: 5,
+          pointBackgroundColor: 'rgba(34,197,94,0.8)',
+          fill: false,
+          yAxisID: 'y',
+        },
+        // CI low
+        {
+          label: 'CI Low (95%)',
+          data: lows,
+          borderColor: 'rgba(248,113,113,0.8)',
+          borderWidth: 1.5,
+          borderDash: [4,3],
+          pointRadius: 5,
+          pointBackgroundColor: 'rgba(248,113,113,0.8)',
+          fill: '+0',
+          backgroundColor: 'rgba(247,201,75,0.07)',
+          yAxisID: 'y',
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            color: '#4a5568',
+            font: { family: 'Space Mono', size: 11 },
+            boxWidth: 10,
+          }
+        },
+        tooltip: {
+          backgroundColor: '#0d1117',
+          borderColor: '#1c2433',
+          borderWidth: 1,
+          titleColor: '#c9d4e0',
+          bodyColor: '#4a5568',
+          titleFont: { family: 'Space Mono', size: 11 },
+          bodyFont:  { family: 'Space Mono', size: 11 },
+          callbacks: {
+            label: ctx => ctx.parsed.y != null ? ` $${fmt(ctx.parsed.y)}` : null,
+          }
+        }
+      },
+      scales: {
+        y: {
+          position: 'right',
+          grid: { color: 'rgba(28,36,51,0.8)' },
+          ticks: {
+            color: '#4a5568',
+            font: { family: 'Space Mono', size: 10 },
+            callback: v => '$' + fmt(v, 0),
+          },
+        },
+        x: {
+          grid: { display: false },
+          ticks: {
+            color: '#4a5568',
+            font: { family: 'Space Mono', size: 10 },
+            maxTicksLimit: 8,
+          },
+        }
+      }
+    }
+  });
+}
+
+// ─── Render prediction ────────────────────────────────────────────────────────
+function renderPrediction(pred, bars) {
+  const price  = pred.current_price;
+  const low    = pred.low_95;
+  const high   = pred.high_95;
+  const width  = pred.width;
+
+  el('pred-price').textContent  = '$' + fmt(price, 2);
+  el('pred-low').textContent    = '$' + fmt(low, 2);
+  el('pred-high').textContent   = '$' + fmt(high, 2);
+  el('pred-width').textContent  = '$' + fmt(width, 2);
+  el('pred-mu').textContent     = fmtSci(pred.mu, 3);
+  el('pred-sigma').textContent  = (pred.sigma * 100).toFixed(3) + '%';
+  el('pred-nu').textContent     = Number(pred.nu).toFixed(1);
+  el('last-updated').textContent= 'Last updated: ' + new Date(pred.timestamp).toUTCString();
+
+  // Range bar visualization
+  const span = high - low;
+  const minP = low  - span * 0.5;
+  const maxP = high + span * 0.5;
+  const total = maxP - minP;
+  const fillLeft  = ((low - minP) / total * 100).toFixed(1);
+  const fillWidth = (span / total * 100).toFixed(1);
+  const cursorPos = ((price - minP) / total * 100).toFixed(1);
+
+  el('range-fill').style.left  = fillLeft + '%';
+  el('range-fill').style.width = fillWidth + '%';
+  el('range-cursor').style.left= cursorPos + '%';
+
+  // Change vs previous close
+  if (bars && bars.length >= 2) {
+    const prev  = bars[bars.length - 2].close;
+    const chPct = ((price - prev) / prev * 100);
+    const chEl  = el('pred-change');
+    chEl.textContent = (chPct >= 0 ? '▲ ' : '▼ ') + Math.abs(chPct).toFixed(2) + '% vs prev close';
+    chEl.className   = 'pred-change ' + (chPct >= 0 ? 'up' : 'down');
+  }
+
+  // Chart
+  buildChart(bars.slice(-50), low, high);
+  el('chart-time').textContent = new Date(bars[bars.length - 1].close_time).toISOString().slice(0,16) + ' UTC';
+}
+
+// ─── Render metrics ───────────────────────────────────────────────────────────
+function renderMetrics(m) {
+  if (!m || m.error) return;
+  const cov = m.coverage_95;
+  el('m-coverage').textContent = cov != null ? cov.toFixed(4) : '—';
+  el('m-width').textContent    = m.mean_width_95 != null ? '$' + fmt(m.mean_width_95, 0) : '—';
+  el('m-winkler').textContent  = m.mean_winkler_95 != null ? fmt(m.mean_winkler_95, 0) : '—';
+  el('m-count').textContent    = m.n_predictions ?? '—';
+
+  // Colour coverage based on how close to 0.95
+  const covEl = el('m-coverage');
+  if (cov != null) {
+    const diff = Math.abs(cov - 0.95);
+    covEl.style.color = diff < 0.02 ? 'var(--green)' : diff < 0.05 ? 'var(--accent)' : 'var(--red)';
+  }
+}
+
+// ─── Render history ───────────────────────────────────────────────────────────
+function renderHistory(history) {
+  const tbody = el('history-body');
+  el('history-count').textContent = history.length + ' saved';
+
+  if (!history.length) return;
+
+  // Show last 15, newest first
+  const rows = [...history].reverse().slice(0, 15);
+  tbody.innerHTML = rows.map(p => {
+    const t = p.timestamp ? new Date(p.timestamp).toISOString().slice(11,16) : '—';
+    const actual = p.actual != null ? '$' + fmt(p.actual, 0) : '<span style="color:var(--muted)">pending</span>';
+    const hit = p.hit != null
+      ? (p.hit ? '<span class="badge-hit">✓ HIT</span>' : '<span class="badge-miss">✗ MISS</span>')
+      : '<span style="color:var(--muted)">—</span>';
+    return `<tr>
+      <td>${t}</td>
+      <td>$${fmt(p.low_95, 0)}</td>
+      <td>$${fmt(p.high_95, 0)}</td>
+      <td>${actual}</td>
+      <td>${hit}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── Load everything ──────────────────────────────────────────────────────────
+async function loadAll() {
+  clearError();
+  setStatus('Loading…', true);
+
+  try {
+    // 1. Current prediction
+    const res1 = await fetch(API_BASE + '/current');
+    if (!res1.ok) throw new Error('Backend returned ' + res1.status);
+    const data1 = await res1.json();
+    renderPrediction(data1.prediction, data1.bars);
+    setStatus('Live · ' + new Date().toISOString().slice(11,19) + ' UTC', true);
+
+    // 2. Cached metrics (fast, non-blocking)
+    fetch(API_BASE + '/backtest', { cache: "no-store" }).then(r => r.json()).then(d => renderMetrics(d.metrics)).catch(() => {});
+
+    // 3. History (Part C)
+    fetch(API_BASE + '/history').then(r => r.json()).then(d => renderHistory(d.history)).catch(() => {});
+
+  } catch (err) {
+    showError('Could not reach backend at ' + API_BASE + '. Make sure uvicorn is running. → ' + err.message);
+    setStatus('Offline', false);
+  }
+
+  // Hide loader
+  const loader = el('loading');
+  loader.classList.add('fade');
+  setTimeout(() => loader.style.display = 'none', 600);
+}
+
+// Auto-refresh every 5 minutes
+setInterval(loadAll, 5 * 60 * 1000);
+
+// Initial load
+loadAll();
+</script>
+</body>
+</html>
