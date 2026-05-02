@@ -1,39 +1,111 @@
-# BTC Range Forecaster — Backend
+# ₿ BTC Range Forecaster
 
-FastAPI backend implementing GBM + Student-t forecasting for BTC/USDT 1h bars.
+A real-time Bitcoin (BTC/USDT) price range prediction system using
+**Geometric Brownian Motion (GBM) with Student-t innovations and stochastic volatility calibration.**
 
-## Setup
+---
+
+## 🌐 Live Demo
+
+* 🔗 Frontend: https://your-netlify-url.netlify.app
+* 🔗 Backend API: https://web-production-596e4.up.railway.app
+
+---
+
+## ⚙️ Architecture
+
+```
+Frontend (Netlify)
+        ↓
+FastAPI Backend (Railway)
+        ↓
+Binance Public API
+```
+
+---
+
+## 🧠 Model Overview
+
+* **GBM (Geometric Brownian Motion)** for price evolution
+* **Student-t distribution** for fat tails (crypto volatility)
+* **Stochastic volatility scaling** to capture clustering
+* **Monte Carlo simulation (10,000 paths)**
+* **95% Confidence Interval prediction**
+
+---
+
+## 📊 Key Metrics
+
+* Coverage (95% target): ~0.94
+* Adaptive interval width
+* Winkler score for calibration quality
+
+---
+
+## 📡 API Endpoints
+
+| Endpoint    | Description                    |
+| ----------- | ------------------------------ |
+| `/health`   | Health check                   |
+| `/current`  | Live prediction + last 50 bars |
+| `/backtest` | Walk-forward backtest          |
+| `/metrics`  | Cached metrics                 |
+| `/history`  | Stored predictions             |
+
+---
+
+## 🚀 Local Setup
 
 ```bash
-cd backend
 pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-## Endpoints
+---
 
-| Endpoint     | Description |
-|-------------|-------------|
-| `GET /health` | Healthcheck |
-| `GET /current` | Live prediction + last 50 bars |
-| `GET /backtest?limit=720` | Run 30-day backtest (cached after first run) |
-| `GET /metrics` | Cached backtest metrics only |
-| `GET /history` | All saved predictions (Part C persistence) |
+## ☁️ Deployment
 
-## Deploy (free)
+### Backend (Railway)
 
-**Railway / Render / Fly.io:**
+Start command:
+
 ```bash
-# Railway
-railway init && railway up
-
-# Or Render: connect GitHub repo, set start command:
-uvicorn main:app --host 0.0.0.0 --port $PORT
+uvicorn backend.main:app --host 0.0.0.0 --port $PORT
 ```
 
-## Data Source
+### Frontend (Netlify)
 
-Uses Binance public API — no API key required:
+* Static HTML deployed via drag & drop
+* Connected to backend via REST API
+
+---
+
+## 📈 Data Source
+
+Binance Public API (no API key required):
+
 ```
-https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=500
+https://data-api.binance.vision/api/v3/klines
 ```
+
+---
+
+## 💡 Key Improvements
+
+* Introduced stochastic volatility scaling to improve tail coverage
+* Calibrated model to reduce underestimation of extreme moves
+* Achieved near-target coverage (~94%) without excessive widening
+
+---
+
+## 🧪 Evaluation
+
+* Walk-forward backtesting (no data leakage)
+* Predictions evaluated only after candle close
+* Persistent logging of predictions and outcomes
+
+---
+
+## 👨‍💻 Author
+
+R27

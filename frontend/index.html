@@ -686,10 +686,7 @@
 
 <script>
 // ─── Config ───────────────────────────────────────────────────────────────────
-// Change this to your deployed backend URL (e.g., https://your-app.railway.app)
-const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-  ? 'http://localhost:8010'
-  : window.location.origin.replace(':5500', ':8000');  // adjust for your deployment
+const API_BASE = "https://web-production-596e4.up.railway.app";
 
 let priceChart = null;
 
