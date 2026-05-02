@@ -7,7 +7,7 @@ A real-time Bitcoin (BTC/USDT) price range prediction system using
 
 ## 🌐 Live Demo
 
-* 🔗 Frontend: https://your-netlify-url.netlify.app
+* 🔗 Frontend: https://gregarious-crostata-e7a581.netlify.app
 * 🔗 Backend API: https://web-production-596e4.up.railway.app
 
 ---
